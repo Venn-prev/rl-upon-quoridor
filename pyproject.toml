@@ -1,0 +1,22 @@
+[build-system]
+requires=["setuptools>=68"]
+build-backend="setuptools.build_meta"
+[project]
+name="qudor-ai"
+version="2.1.0"
+requires-python=">=3.10"
+# pandas/matplotlib/psutil were listed but never imported anywhere in the tree.
+dependencies=["numpy>=1.26","torch>=2.2"]
+[project.optional-dependencies]
+dev=["pytest>=8","ruff>=0.1"]
+[project.scripts]
+qudor-train="quoridor_ai.az_train:main"
+qudor-az-arena="quoridor_ai.az_arena:main"
+[tool.setuptools.packages.find]
+include=["quoridor_ai*"]
+[tool.pytest.ini_options]
+testpaths=["tests"]
+markers=[
+    "integration: mark test as integration test (web server and training loops)",
+    "slow: mark test as slow running test",
+]
