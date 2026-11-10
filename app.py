@@ -46,7 +46,7 @@ SCAN_LOCK = threading.Lock()
 MODEL_META: dict[str, tuple[tuple[float, int], dict | None]] = {}
 # Same map, persisted, so the cost is paid once ever rather than once per server start.
 MODEL_META_FILE = ROOT / ".model_index.json"
-MODEL_META_VERSION = 3
+MODEL_META_VERSION = 5   # v5: labels became English; bumps rebuild stale Russian cache entries
 # Filled in by main() from the actual --host/--port so the allowlist matches the running server.
 ALLOWED_ORIGINS: set[str] = set()
 
@@ -119,12 +119,12 @@ def describe_checkpoint(rel: str, path: Path) -> dict | None:
     # A promoted checkpoint is the only one with evidence behind it, so say so; the rest
     # are described by how far training got, which is all they have.
     if gen:
-        note = f"поколение {gen}" + (f", {win * 100:.0f}% в турнире" if win is not None else "")
+        note = f"generation {gen}" + (f", {win * 100:.0f}% tournament win rate" if win is not None else "")
     elif it is not None and it >= 0:
-        note = f"порция {it}, турнир не проходила"
+        note = f"iteration {it}, not evaluated in a tournament"
     else:
-        note = "стартовая сеть, не обучена"
-    return {"path": rel, "label": f"{Path(rel).stem} — сеть {channels}×{blocks}, {note}",
+        note = "untrained starting network"
+    return {"path": rel, "label": f"{Path(rel).stem} — {channels}×{blocks} network, {note}",
             "generation": gen or 0, "iteration": it if isinstance(it, int) else -1,
             "winRate": win, "params": params, "rulesVersion": rules_version,
             "official": official, "legacy": not official}
@@ -214,10 +214,10 @@ def is_over(s: State) -> bool:
 
 def load_model(rel: str) -> None:
     if rel not in model_paths():
-        raise ValueError("checkpoint отсутствует в разрешённом каталоге")
+        raise ValueError("checkpoint is not in the allowed directory")
     path = (ROOT / Path(rel)).resolve()
     if ROOT not in path.parents:
-        raise ValueError("недопустимый путь")
+        raise ValueError("invalid path")
     data = load_checkpoint(path)
     model = net_from_checkpoint(data, DEVICE)
     model.eval()
@@ -284,7 +284,7 @@ def ai_move() -> None:
         if model is None:
             # Returning quietly here leaves the board on the AI's turn forever, with nothing
             # on screen to say why. It is the AI's move and it cannot make one, so say so.
-            GAME["error"] = "модель не загружена — выберите её в списке сверху"
+            GAME["error"] = "No model is loaded — select one from the list above"
             return
         GAME["thinking"] = True
         version = s.ply
@@ -379,11 +379,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
                 self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body); return
-            if path == "/english.js":
-                body = (ROOT / "english.js").read_bytes()
-                self.send_response(200); self.send_header("Content-Type", "application/javascript; charset=utf-8")
-                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-                self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body); return
+
             if path == "/api/token": return self.json({"token": TOKEN})
             if path == "/api/models": return self.json(safe_models())
             if path == "/api/state": return self.json(state_payload())

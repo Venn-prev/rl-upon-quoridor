@@ -70,8 +70,8 @@ def post(base, path, body, token=None, origin=None):
 def test_index_and_readonly_endpoints(server):
     with urllib.request.urlopen(server + "/", timeout=10) as r:
         assert r.status == 200 and b"<html" in r.read().lower()
-    with urllib.request.urlopen(server + "/english.js", timeout=10) as r:
-        assert r.status == 200 and b"Local game" in r.read()
+    with urllib.request.urlopen(server + "/", timeout=10) as r:
+        assert b"Local game and model diagnostics" in r.read()
     assert get(server, "/api/token")[1]["token"]
     assert isinstance(get(server, "/api/models")[1], list)
     assert isinstance(get(server, "/api/metrics")[1], list)
@@ -85,6 +85,15 @@ def test_only_the_strongest_published_checkpoint_is_listed(server):
     assert models[0]["official"] is True
     assert models[0]["legacy"] is False
     assert models[0]["rulesVersion"] == 2
+
+
+def test_checkpoint_label_is_not_in_russian():
+    model = webapp.describe_checkpoint(
+        "checkpoints/gen85_best.pt", webapp.ROOT / "checkpoints" / "gen85_best.pt"
+    )
+    assert model is not None
+    assert "network" in model["label"]
+    assert not any("\u0400" <= char <= "\u04ff" for char in model["label"])
 
 
 def test_mutations_require_the_csrf_token(server):
